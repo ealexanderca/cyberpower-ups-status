@@ -165,7 +165,7 @@ KNOWN_FIELDS = [
     ("input.frequency.nominal (Hz)", 0x0d,  1,  1,  1.0,  "Hz"),  # lookup below
     ("input.frequency (Hz)",         0x0e,  1,  1,  0.5,  "Hz"),  # raw * 0.5 = Hz
     ("input.transfer.low (V)",       0x10,  1,  2,  1.0,  "V"),
-    # ("input.transfer.high (V)",    0x11, ...) — always errors on macOS (IOHIDDeviceGetReport 0xE0005000)
+    ("input.transfer.high (V)",       0x10,  1,  2,  1.0,  "V"),
     ("output.voltage (V)",           0x12,  1,  2,  1.0,  "V"),
     ("output.voltage.nominal (V)",   0x13,  1,  1,  1.0,  "V"),   # lookup below
     ("output.frequency (Hz)",        0x14,  1,  1,  1.0,  "Hz"),  # lookup below (index)
