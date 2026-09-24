@@ -12,6 +12,13 @@ import time
 import hid
 import usb.core
 import usb.util
+import usb.core
+import usb.backend.libusb1
+import libusb_package
+
+backend = usb.backend.libusb1.get_backend(
+    find_library=libusb_package.find_library
+)
 
 VENDOR_ID  = 0x0764
 PRODUCT_ID = 0x0601
@@ -30,11 +37,10 @@ def print_usb_device_info():
     print("=" * 60)
     print("USB DEVICE DESCRIPTOR (PyUSB)")
     print("=" * 60)
-    dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+    dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID, backend=backend)
     if dev is None:
         print("  [!] Device not found via PyUSB")
         return
-
     print(f"  Bus / Address     : {dev.bus} / {dev.address}")
     print(f"  Vendor  ID        : 0x{dev.idVendor:04x}")
     print(f"  Product ID        : 0x{dev.idProduct:04x}")
@@ -77,9 +83,9 @@ def print_hid_device_info(h):
     print("=" * 60)
     print("HID DEVICE INFO (hidapi)")
     print("=" * 60)
-    print(f"  Manufacturer      : {h.manufacturer}")
-    print(f"  Product           : {h.product}")
-    print(f"  Serial Number     : {h.serial}")
+    print(f"  Manufacturer      : {h.get_manufacturer_string()}")
+    print(f"  Product           : {h.get_product_string()}")
+    print(f"  Serial Number     : {h.get_serial_number_string()}")
     print()
 
 
@@ -165,7 +171,7 @@ KNOWN_FIELDS = [
     ("input.frequency.nominal (Hz)", 0x0d,  1,  1,  1.0,  "Hz"),  # lookup below
     ("input.frequency (Hz)",         0x0e,  1,  1,  0.5,  "Hz"),  # raw * 0.5 = Hz
     ("input.transfer.low (V)",       0x10,  1,  2,  1.0,  "V"),
-    # ("input.transfer.high (V)",    0x11, ...) — always errors on macOS (IOHIDDeviceGetReport 0xE0005000)
+    ("input.transfer.high (V)",      0x10,  3,  2,  1.0,  "V"),
     ("output.voltage (V)",           0x12,  1,  2,  1.0,  "V"),
     ("output.voltage.nominal (V)",   0x13,  1,  1,  1.0,  "V"),   # lookup below
     ("output.frequency (Hz)",        0x14,  1,  1,  1.0,  "Hz"),  # lookup below (index)
@@ -237,13 +243,10 @@ def decode_known_fields(h):
                     display = f"{raw} W"
             elif label.startswith("ups.delay"):
                 display = "not set" if raw == 0xFFFF else f"{raw} s"
-            elif "voltage.nominal" in label and "battery" not in label:
-                val_str = VOLTAGE_NOMINAL_MAP.get(raw, f"idx={raw}")
-                # CPS TW firmware quirk: output.voltage.nominal reports idx=7 (230V)
-                # even on 110V models; treat as informational only.
-                display = val_str
             elif label.startswith("battery.voltage.nominal"):
                 display = BATT_VOLTAGE_NOMINAL.get(raw, f"idx={raw}")
+            elif "voltage.nominal" in label:
+                display = VOLTAGE_NOMINAL_MAP.get(raw, f"idx={raw}")
             elif "frequency.nominal" in label:
                 display = FREQ_NOM_INDEX_MAP.get(raw, f"idx={raw}")
             elif "frequency" in label:
@@ -268,11 +271,12 @@ def main():
     print(f"Target: VID=0x{VENDOR_ID:04x}  PID=0x{PRODUCT_ID:04x}")
     print()
 
-    # # 1. USB descriptor info (PyUSB)
-    # try:
-    #     print_usb_device_info()
-    # except Exception as e:
-    #     print(f"[PyUSB error: {e}]\n")
+    # 1. USB descriptor info (PyUSB)
+    try:
+        print_usb_device_info()
+    except Exception as e:
+        raise
+        print(f"[PyUSB error: {e}]\n")
 
     # 2. HID enumeration
     enumerate_hid_devices()
@@ -280,7 +284,8 @@ def main():
     # 3. Open HID device and read data
     while True:
         try:
-            h = hid.Device(VENDOR_ID, PRODUCT_ID)
+            h = hid.device()
+            h.open(VENDOR_ID, PRODUCT_ID)
             break
         except Exception:
             print("Waiting for device...", end="\r")
